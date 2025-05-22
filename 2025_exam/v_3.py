@@ -1,10 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.fftpack import fft, ifft, fftshift
-
+from scipy.fftpack import fft
 
 def generator_sin(f, fs):
-    t_total =  1  # Общее время для отображения 
+    t_total =  1
 
     t = np.arange(0, t_total, 1/fs)
     y = np.sin(2 * np.pi * f * t)
@@ -14,7 +13,7 @@ def generator_sin(f, fs):
 def visual_graph(t, y, stem_flag):
 
     plt.figure(figsize=(10, 4))
-    if stem_flag:    
+    if stem_flag:
         plt.stem(t, y)
     plt.plot(t, y, 'b-', alpha=0.5)
     plt.title('Дискретизация')
@@ -24,11 +23,25 @@ def visual_graph(t, y, stem_flag):
     plt.legend()
     plt.show()
 
-def Hamming_window(k, N):
-    return 0.54 + 0.46 * np.cos(np.pi * k / N)
+def Hamming_window(N):
+    n = np.arange(N)
+    return 0.54 - 0.46 * np.cos(2 * np.pi * n / (N - 1))
 
-def FIR_lowpass(k, L, N):
-    return np.sinc(k / L) * Hamming_window(k, N)
+def FIR_lowpass(L, N):
+    M = (N - 1) // 2
+    n = np.arange(-M, M + 1)
+    h = np.sinc(n / L)  # sinc-функция с нормированной частотой среза 1/L
+    w = Hamming_window(N)
+    h = h * w
+    h = h / np.sum(h)  # нормируем коэффициенты
+    return h
+
+def filtering_signal(x, L):
+    # N - длина фильтра
+    N = 2 * L * 10 + 1  
+    h = FIR_lowpass(L, N)
+    return np.convolve(x, h, mode='same')
+
 
 
 def Upsampling(x, L):
@@ -43,21 +56,6 @@ def Upsampling(x, L):
 
     return y
 
-
-def filtering_signal(x, L):
-    N = 2 * L
-    m = len(x)
-    # m = n * L
-    y = np.zeros(m)
-
-    for i in range(m):
-        for k in range(-N, N + 1):
-            if (i - k) >= 0 and (i-k) < m:
-                h = FIR_lowpass(k, L, N)
-                # h = FIR_lowpass(k, f_c, f_s)
-                y[i] += h * x[i - k]
-
-    return y
 
 
 def interpolation(x, L):
@@ -77,7 +75,7 @@ def DPF(x, N):
     plt.ylabel("Амплитуда")
     
 
-def decimation(x, M):
+def decimation_my(x, M):
     N = 2 * M
     m = len(x)
     n = m // M
@@ -85,10 +83,18 @@ def decimation(x, M):
     for i in range(n):
         for k in range(M):
             if (i - k) >= 0 and (i-k) < m:
-                h = FIR_lowpass(k, M, N)
-                # h = FIR_lowpass(k, f_c, f_s)
+                # h = FIR_lowpass_my(k, M, N)
+                h = FIR_lowpass(L, N)
                 y[i] += h * x[i*M - k]
 
+    return y
+
+
+def decimation(x, M):
+    N = 21  # N - длина фильтра
+    h = FIR_lowpass(M, N)
+    y_filtered = np.convolve(x, h, mode='same')  # фильтрация сигнала
+    y = y_filtered[::M]  # децимация — выбор каждого M-го отсчёта
     return y
 
 
@@ -147,8 +153,6 @@ visual_graph(t, y_3, 1)
 DPF(y_3, fs)
 
 
-
-
 mse = MSE(y, y_3)
 print(mse)
 
@@ -159,12 +163,12 @@ mse_array = np.zeros(51)
 
 for f in range(0, 50 + 1):
     y_1, t1 = generator_sin(f, fs)
-    
+
     y_2 = interpolation(y_1, L)
-    
+
     y_3 = decimation(y_2, M)
     mse_array[f] = MSE(y_1, y_3)
-    
+
 print(mse_array)
 
 plt.figure(figsize=(10, 5))
@@ -175,6 +179,7 @@ plt.title('MSE в зависимости от частоты')
 plt.grid(True)
 plt.legend()
 plt.show()
+
 
 
 
